@@ -1,3 +1,4 @@
+
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -450,7 +451,7 @@
                 { type: 'mcq', q: "Which word means 'a tool that protects you from rain'?", options: ["Umbrella", "Uniform", "Up"], correct: "Umbrella", qWordMeaning: "مظلة" },
                 { type: 'mcq', q: "Choose the word that means 'a small vehicle for transporting goods'.", options: ["Van", "Violin", "Vase"], correct: "Van", qWordMeaning: "شاحنة صغيرة" },
                 { type: 'mcq', q: "Which word means 'a device to tell time worn on your wrist'?", options: ["Watch", "Water", "Window"], correct: "Watch", qWordMeaning: "ساعة يد" },
-                { type: 'mcq', q: "Choose the word that means 'an internal body image of bones'.", options: ["X-ray", "Xylophone", "Fox"], correct: "X-ray", qWordMeaning: "أشعة سينية" },
+                { type: 'mcq', q: "Which word means 'an internal body image of bones'.", options: ["X-ray", "Xylophone", "Fox"], correct: "X-ray", qWordMeaning: "أشعة سينية" },
                 { type: 'mcq', q: "Which word means 'the color of a ripe banana'?", options: ["Yellow", "Yogurt", "Yawn"], correct: "Yellow", qWordMeaning: "أصفر" },
                 { type: 'mcq', q: "Choose the word that means 'a striped black and white animal similar to a horse'.", options: ["Zebra", "Zoo", "Zip"], correct: "Zebra", qWordMeaning: "حمار وحشي" },
                 // Fill-in-the-blank for Vocabulary
@@ -494,12 +495,16 @@
                 "X-ray": "أشعة سينية", "Xylophone": "إكسيليفون", "Fox": "ثعلب",
                 "Yellow": "أصفر", "Yogurt": "زبادي", "Yawn": "تثاؤب",
                 "Zebra": "حمار وحشي", "Zoo": "حديقة حيوان", "Zip": "سحاب (ملابس)",
-                // For fill-in-the-blank answers
-                "blue": "أزرق", "cat": "قطة", "book": "كتاب", "eyes": "عيون", "hat": "قبعة"
+                // For fill-in-the-blank answers (add common variations like capitalized forms if needed)
+                "blue": "أزرق", "cat": "قطة", "book": "كتاب", "eyes": "عيون", "hat": "قبعة",
+                "Blue": "أزرق", "Cat": "قطة", "Book": "كتاب", "Eyes": "عيون", "Hat": "قبعة",
+                "Lion": "أسد", "Do": "يفعل", "He": "هو", "She": "هي", "It": "هو/هي",
+                "am": "أكون", "is": "يكون", "are": "يكونون", "have": "يملك", "has": "يملك", "does": "يفعل"
             };
 
             function getArabicMeaning(word) {
-                return arabicMeaningMap[word] || "معنى غير متاح";
+                // Return meaning for both original and lowercase version if available
+                return arabicMeaningMap[word] || arabicMeaningMap[word.toLowerCase()] || "معنى غير متاح";
             }
 
             // تجميع كل الأسئلة في مصفوفة واحدة
@@ -535,6 +540,8 @@
                 optionsContainer.innerHTML = '';
                 fillInBlankInput.value = ''; // مسح أي نص سابق
                 fillInBlankInput.style.display = 'none'; // إخفاء حقل الأكمل افتراضياً
+                fillInBlankInput.classList.remove('correct', 'incorrect'); // إزالة أي تنسيقات سابقة
+                fillInBlankInput.disabled = false; // تفعيل حقل الإدخال
 
                 if (currentQuestionIndex < desiredTotalQuestions) {
                     const question = currentQuizQuestions[currentQuestionIndex];
@@ -606,32 +613,34 @@
             // التعامل مع الإجابة (Fill-in-the-blank)
             function submitFillInAnswer() {
                 const question = currentQuizQuestions[currentQuestionIndex];
-                const userAnswer = fillInBlankInput.value.trim();
-                const correctAnswer = question.correct;
-                // للمقارنة بدون حساسية لحالة الأحرف (case-insensitive)
-                const isCorrect = (userAnswer.toLowerCase() === correctAnswer.toLowerCase());
+                const userAnswerRaw = fillInBlankInput.value;
+                // قم بتنظيف إجابة المستخدم والإجابة الصحيحة قبل المقارنة
+                const userAnswerClean = userAnswerRaw.trim().toLowerCase();
+                const correctAnswerClean = question.correct.trim().toLowerCase();
+
+                const isCorrect = (userAnswerClean === correctAnswerClean);
 
                 fillInBlankInput.disabled = true; // تعطيل حقل الإدخال
                 submitAnswerBtn.style.display = 'none'; // إخفاء زر التحقق
 
-                const userMeaning = getArabicMeaning(userAnswer);
-                const correctMeaning = getArabicMeaning(correctAnswer);
+                const userMeaning = getArabicMeaning(userAnswerRaw); // استخدم الإجابة الأصلية لعرض المعنى
+                const correctMeaning = getArabicMeaning(question.correct);
 
                 quizResults.push({
                     question: question.q,
-                    chosenAnswer: userAnswer,
-                    correctAnswer: correctAnswer,
+                    chosenAnswer: userAnswerRaw, // حفظ الإجابة كما أدخلها المستخدم
+                    correctAnswer: question.correct,
                     isCorrect: isCorrect,
                     type: 'fill_in'
                 });
 
                 if (isCorrect) {
-                    feedback.textContent = `إجابة صحيحة! (اختيارك: ${userAnswer} - ${userMeaning})`;
+                    feedback.textContent = `إجابة صحيحة! (اختيارك: ${userAnswerRaw} - ${userMeaning})`;
                     feedback.classList.add('correct-feedback');
                     fillInBlankInput.classList.add('correct'); // تمييز الإدخال نفسه
                     score++;
                 } else {
-                    feedback.textContent = `إجابة خاطئة. الإجابة الصحيحة كانت: ${correctAnswer} (${correctMeaning}). اختيارك: ${userAnswer} (${userMeaning})`;
+                    feedback.textContent = `إجابة خاطئة. الإجابة الصحيحة كانت: ${question.correct} (${correctMeaning}). اختيارك: ${userAnswerRaw} (${userMeaning})`;
                     feedback.classList.remove('correct-feedback');
                     fillInBlankInput.classList.add('incorrect'); // تمييز الإدخال نفسه
                 }
@@ -660,7 +669,7 @@
                 quizResults.forEach((result, index) => {
                     const status = result.isCorrect ? "صحيحة" : "خاطئة";
                     // For fill-in-the-blank questions, ensure correct formatting
-                    const questionTextForShare = result.type === 'fill_in' ? result.question.replace('____', result.correctAnswer) : result.question;
+                    const questionTextForShare = result.q; // استخدم السؤال الأصلي دائمًا للواتساب
                     
                     whatsappMessage += `\nالسؤال ${index + 1}: ${questionTextForShare}\n`;
                     whatsappMessage += `إجابتك: ${result.chosenAnswer || '(لم تتم الإجابة)'} (${getArabicMeaning(result.chosenAnswer)})\n`;
@@ -761,4 +770,3 @@
     </script>
 </body>
 </html>
-
