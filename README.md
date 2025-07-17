@@ -53,11 +53,22 @@
             border: 2px solid #457b9d; /* حدود أكثر وضوحًا */
             border-radius: 10px; /* زوايا دائرية أكثر */
             font-size: 1.2em; /* حجم خط أكبر */
-            text-align: right;
+            text-align: right; /* للأسماء العربية */
             box-sizing: border-box;
             outline: none; /* إزالة الإطار الأزرق عند التركيز */
             transition: border-color 0.3s ease;
         }
+        
+        /* For fill-in-the-blank input */
+        input.fill-in-blank {
+            direction: ltr; /* اتجاه الكتابة من اليسار لليمين */
+            text-align: left; /* محاذاة لليسار */
+            font-weight: bold;
+            color: #1d3557;
+            width: 80%; /* أقل عرضًا لتمييزه */
+            max-width: 300px;
+        }
+
 
         input[type="text"]:focus {
             border-color: #e63946; /* لون حدود عند التركيز */
@@ -98,7 +109,7 @@
             cursor: pointer;
             font-size: 1.15em;
             transition: background-color 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
-            text-align: right;
+            text-align: right; /* افتراضي للـ RTL */
             font-weight: 500;
         }
 
@@ -285,7 +296,9 @@
             <p class="arabic-meaning-hint">معنى المفهوم الرئيسي: <span id="arabic-meaning-question"></span></p>
             <div id="options-container" class="options-container">
                 </div>
+            <input type="text" id="fill-in-blank-input" class="fill-in-blank" placeholder="اكتب إجابتك هنا" style="display:none;" dir="ltr">
             <p id="feedback"></p>
+            <button id="submit-answer-btn" style="display: none;">تحقق من الإجابة</button>
             <button id="next-question-btn" style="display: none;">السؤال التالي</button>
         </div>
 
@@ -320,7 +333,9 @@
             const questionText = document.getElementById('question-text');
             const arabicMeaningQuestionSpan = document.getElementById('arabic-meaning-question');
             const optionsContainer = document.getElementById('options-container');
+            const fillInBlankInput = document.getElementById('fill-in-blank-input');
             const feedback = document.getElementById('feedback');
+            const submitAnswerBtn = document.getElementById('submit-answer-btn');
             const nextQuestionBtn = document.getElementById('next-question-btn');
 
             const finalStudentName = document.getElementById('final-student-name');
@@ -335,90 +350,119 @@
             let studentName = '';
             let currentQuestionIndex = 0;
             let score = 0;
-            const totalQuestions = 50; // إجمالي عدد الأسئلة
+            const desiredTotalQuestions = 50; // إجمالي عدد الأسئلة المرغوب عرضها
+            let allQuestionsPool = []; // مصفوفة لتخزين كل الأسئلة المحتملة
+            let currentQuizQuestions = []; // الأسئلة التي سيتم عرضها في الاختبار الحالي
             let quizResults = []; // لتخزين نتائج كل سؤال
 
             // --- بيانات الأسئلة باللغة الإنجليزية مع تنوع أكبر في الصياغة والخيارات ---
-            // تم تعديل الخيارات لتكون مختلفة في الحروف الأولى لزيادة التحدي
+            // كل سؤال يمتلك الآن خاصية `type`: 'mcq' (اختيار من متعدد) أو 'fill_in' (أكمل)
             const verbToBeQuestions = [
-                { q: "Choose the correct form of 'to be': I ____ happy.", options: ["am", "runs", "is"], correct: "am", qWordMeaning: "فعل يكون" },
-                { q: "Fill in the blank: She ____ smart.", options: ["is", "jump", "are"], correct: "is", qWordMeaning: "فعل يكون" },
-                { q: "Which verb is correct for 'They': They ____ playing.", options: ["are", "eats", "is"], correct: "are", qWordMeaning: "فعل يكون" },
-                { q: "He ____ a good student. Select the correct verb.", options: ["is", "go", "are"], correct: "is", qWordMeaning: "فعل يكون" },
-                { q: "We ____ close friends.", options: ["are", "sleep", "am"], correct: "are", qWordMeaning: "فعل يكون" },
-                { q: "It ____ a cute cat. (for non-human)", options: ["is", "fly", "walk"], correct: "is", qWordMeaning: "فعل يكون" },
-                { q: "You ____ a great teacher.", options: ["are", "sing", "is"], correct: "are", qWordMeaning: "فعل يكون" },
-                { q: "The water ____ very cold.", options: ["is", "drink", "are"], correct: "is", qWordMeaning: "فعل يكون" },
-                { q: "My parents ____ in the garden.", options: ["are", "read", "am"], correct: "are", qWordMeaning: "فعل يكون" },
-                { q: "Choose the correct conjugation: I ____ tired today.", options: ["am", "drive", "is"], correct: "am", qWordMeaning: "فعل يكون" },
+                { type: 'mcq', q: "Choose the correct form of 'to be': I ____ happy.", options: ["am", "runs", "is"], correct: "am", qWordMeaning: "فعل يكون" },
+                { type: 'mcq', q: "Fill in the blank: She ____ smart.", options: ["is", "jump", "are"], correct: "is", qWordMeaning: "فعل يكون" },
+                { type: 'mcq', q: "Which verb is correct for 'They': They ____ playing.", options: ["are", "eats", "is"], correct: "are", qWordMeaning: "فعل يكون" },
+                { type: 'mcq', q: "He ____ a good student. Select the correct verb.", options: ["is", "go", "are"], correct: "is", qWordMeaning: "فعل يكون" },
+                { type: 'mcq', q: "We ____ close friends.", options: ["are", "sleep", "am"], correct: "are", qWordMeaning: "فعل يكون" },
+                { type: 'mcq', q: "It ____ a cute cat. (for non-human)", options: ["is", "fly", "walk"], correct: "is", qWordMeaning: "فعل يكون" },
+                { type: 'mcq', q: "You ____ a great teacher.", options: ["are", "sing", "is"], correct: "are", qWordMeaning: "فعل يكون" },
+                { type: 'mcq', q: "The water ____ very cold.", options: ["is", "drink", "are"], correct: "is", qWordMeaning: "فعل يكون" },
+                { type: 'mcq', q: "My parents ____ in the garden.", options: ["are", "read", "am"], correct: "are", qWordMeaning: "فعل يكون" },
+                { type: 'mcq', q: "Choose the correct conjugation: I ____ tired today.", options: ["am", "drive", "is"], correct: "am", qWordMeaning: "فعل يكون" },
+                // Fill-in-the-blank for Verb To Be
+                { type: 'fill_in', q: "I ____ a student.", correct: "am", qWordMeaning: "فعل يكون" },
+                { type: 'fill_in', q: "She ____ tall.", correct: "is", qWordMeaning: "فعل يكون" },
+                { type: 'fill_in', q: "They ____ at home.", correct: "are", qWordMeaning: "فعل يكون" },
+                { type: 'fill_in', q: "He ____ from Egypt.", correct: "is", qWordMeaning: "فعل يكون" },
+                { type: 'fill_in', q: "We ____ learning English.", correct: "are", qWordMeaning: "فعل يكون" },
             ];
 
             const verbToDoQuestions = [
-                { q: "Choose the correct form of 'to do': I ____ my homework every day.", options: ["do", "sings", "play"], correct: "do", qWordMeaning: "فعل يفعل" },
-                { q: "She ____ not like chocolate.", options: ["does", "run", "jump"], correct: "does", qWordMeaning: "فعل يفعل" },
-                { q: "Which verb is correct for 'They': They ____ not speak English.", options: ["do", "writes", "reads"], correct: "do", qWordMeaning: "فعل يفعل" },
-                { q: "He ____ his work diligently.", options: ["does", "sleep", "walk"], correct: "does", qWordMeaning: "فعل يفعل" },
-                { q: "We ____ our best.", options: ["do", "eats", "dances"], correct: "do", qWordMeaning: "فعل يفعل" },
-                { q: "It ____ not make a difference.", options: ["does", "fly", "swim"], correct: "does", qWordMeaning: "فعل يفعل" },
-                { q: "You ____ a good job.", options: ["do", "sit", "stand"], correct: "do", qWordMeaning: "فعل يفعل" },
-                { q: "My brother ____ his school chores.", options: ["does", "talk", "listen"], correct: "does", qWordMeaning: "فعل يفعل" },
-                { q: "____ you speak Arabic?", options: ["do", "sees", "hears"], correct: "do", qWordMeaning: "فعل يفعل" },
-                { q: "What ____ she doing now?", options: ["does", "come", "go"], correct: "does", qWordMeaning: "فعل يفعل" },
+                { type: 'mcq', q: "Choose the correct form of 'to do': I ____ my homework every day.", options: ["do", "sings", "play"], correct: "do", qWordMeaning: "فعل يفعل" },
+                { type: 'mcq', q: "She ____ not like chocolate.", options: ["does", "run", "jump"], correct: "does", qWordMeaning: "فعل يفعل" },
+                { type: 'mcq', q: "Which verb is correct for 'They': They ____ not speak English.", options: ["do", "writes", "reads"], correct: "do", qWordMeaning: "فعل يفعل" },
+                { type: 'mcq', q: "He ____ his work diligently.", options: ["does", "sleep", "walk"], correct: "does", qWordMeaning: "فعل يفعل" },
+                { type: 'mcq', q: "We ____ our best.", options: ["do", "eats", "dances"], correct: "do", qWordMeaning: "فعل يفعل" },
+                { type: 'mcq', q: "It ____ not make a difference.", options: ["does", "fly", "swim"], correct: "does", qWordMeaning: "فعل يفعل" },
+                { type: 'mcq', q: "You ____ a good job.", options: ["do", "sit", "stand"], correct: "do", qWordMeaning: "فعل يفعل" },
+                { type: 'mcq', q: "My brother ____ his school chores.", options: ["does", "talk", "listen"], correct: "does", qWordMeaning: "فعل يفعل" },
+                { type: 'mcq', q: "____ you speak Arabic?", options: ["do", "sees", "hears"], correct: "do", qWordMeaning: "فعل يفعل" },
+                { type: 'mcq', q: "What ____ she doing now?", options: ["does", "come", "go"], correct: "does", qWordMeaning: "فعل يفعل" },
+                // Fill-in-the-blank for Verb To Do
+                { type: 'fill_in', q: "I ____ my bed every morning.", correct: "do", qWordMeaning: "فعل يفعل" },
+                { type: 'fill_in', q: "He ____ not play football.", correct: "does", qWordMeaning: "فعل يفعل" },
+                { type: 'fill_in', q: "____ they like pizza?", correct: "Do", qWordMeaning: "فعل يفعل" },
+                { type: 'fill_in', q: "What ____ you want to do?", correct: "do", qWordMeaning: "فعل يفعل" },
             ];
 
             const verbToHaveQuestions = [
-                { q: "Choose the correct form of 'to have': I ____ a blue pen.", options: ["have", "eat", "has"], correct: "have", qWordMeaning: "فعل يملك" },
-                { q: "She ____ long hair.", options: ["has", "run", "have"], correct: "has", qWordMeaning: "فعل يملك" },
-                { q: "Which verb is correct for 'They': They ____ many books.", options: ["have", "sings", "has"], correct: "have", qWordMeaning: "فعل يملك" },
-                { q: "He ____ a new bicycle.", options: ["has", "play", "have"], correct: "has", qWordMeaning: "فعل يملك" },
-                { q: "We ____ a pet.", options: ["have", "sleeps", "has"], correct: "have", qWordMeaning: "فعل يملك" },
-                { q: "This house ____ a large garden.", options: ["has", "read", "have"], correct: "has", qWordMeaning: "فعل يملك" },
-                { q: "____ you any questions?", options: ["have", "jumps", "has"], correct: "have", qWordMeaning: "فعل يملك" },
-                { q: "My daughter ____ brown eyes.", options: ["has", "writes", "have"], correct: "has", qWordMeaning: "فعل يملك" },
-                { q: "Birds ____ wings to fly.", options: ["have", "flies", "has"], correct: "have", qWordMeaning: "فعل يملك" },
-                { q: "Choose the correct conjugation: I ____ a great idea!", options: ["have", "swims", "has"], correct: "have", qWordMeaning: "فعل يملك" },
+                { type: 'mcq', q: "Choose the correct form of 'to have': I ____ a blue pen.", options: ["have", "eat", "has"], correct: "have", qWordMeaning: "فعل يملك" },
+                { type: 'mcq', q: "She ____ long hair.", options: ["has", "run", "have"], correct: "has", qWordMeaning: "فعل يملك" },
+                { type: 'mcq', q: "Which verb is correct for 'They': They ____ many books.", options: ["have", "sings", "has"], correct: "have", qWordMeaning: "فعل يملك" },
+                { type: 'mcq', q: "He ____ a new bicycle.", options: ["has", "play", "have"], correct: "has", qWordMeaning: "فعل يملك" },
+                { type: 'mcq', q: "We ____ a pet.", options: ["have", "sleeps", "has"], correct: "have", qWordMeaning: "فعل يملك" },
+                { type: 'mcq', q: "This house ____ a large garden.", options: ["has", "read", "have"], correct: "has", qWordMeaning: "فعل يملك" },
+                { type: 'mcq', q: "____ you any questions?", options: ["have", "jumps", "has"], correct: "have", qWordMeaning: "فعل يملك" },
+                { type: 'mcq', q: "My daughter ____ brown eyes.", options: ["has", "writes", "have"], correct: "has", qWordMeaning: "فعل يملك" },
+                { type: 'mcq', q: "Birds ____ wings to fly.", options: ["have", "flies", "has"], correct: "have", qWordMeaning: "فعل يملك" },
+                { type: 'mcq', q: "Choose the correct conjugation: I ____ a great idea!", options: ["have", "swims", "has"], correct: "have", qWordMeaning: "فعل يملك" },
+                // Fill-in-the-blank for Verb To Have
+                { type: 'fill_in', q: "I ____ a brother.", correct: "have", qWordMeaning: "فعل يملك" },
+                { type: 'fill_in', q: "She ____ a red car.", correct: "has", qWordMeaning: "فعل يملك" },
+                { type: 'fill_in', q: "They ____ fun at the park.", correct: "have", qWordMeaning: "فعل يملك" },
+                { type: 'fill_in', q: "He ____ a fever.", correct: "has", qWordMeaning: "فعل يملك" },
             ];
 
             const heItIsQuestions = [
-                { q: "Fill in the blank: ____ is my best friend.", options: ["He", "She", "It"], correct: "He", qWordMeaning: "هو (للمذكر العاقل)" },
-                { q: "Fill in the blank: ____ is a small cat.", options: ["It", "He", "She"], correct: "It", qWordMeaning: "هو/هي (لغير العاقل)" },
-                { q: "Fill in the blank: ____ is my doctor.", options: ["She", "He", "It"], correct: "She", qWordMeaning: "هي (للمؤنث العاقل)" },
-                { q: "Fill in the blank: ____ is a very tall building.", options: ["It", "He", "She"], correct: "It", qWordMeaning: "هو/هي (لغير العاقل)" },
-                { q: "Fill in the blank: ____ is my older brother.", options: ["He", "She", "It"], correct: "He", qWordMeaning: "هو (للمذكر العاقل)" },
-                { q: "Fill in the blank: ____ is my new car.", options: ["It", "He", "She"], correct: "It", qWordMeaning: "هو/هي (لغير العاقل)" },
-                { q: "Fill in the blank: ____ is a talented artist.", options: ["He", "She", "It"], correct: "He", qWordMeaning: "هو (للمذكر العاقل)" },
+                { type: 'mcq', q: "Fill in the blank: ____ is my best friend.", options: ["He", "She", "It"], correct: "He", qWordMeaning: "هو (للمذكر العاقل)" },
+                { type: 'mcq', q: "Fill in the blank: ____ is a small cat.", options: ["It", "He", "She"], correct: "It", qWordMeaning: "هو/هي (لغير العاقل)" },
+                { type: 'mcq', q: "Fill in the blank: ____ is my doctor.", options: ["She", "He", "It"], correct: "She", qWordMeaning: "هي (للمؤنث العاقل)" },
+                { type: 'mcq', q: "Fill in the blank: ____ is a very tall building.", options: ["It", "He", "She"], correct: "It", qWordMeaning: "هو/هي (لغير العاقل)" },
+                { type: 'mcq', q: "Fill in the blank: ____ is my older brother.", options: ["He", "She", "It"], correct: "He", qWordMeaning: "هو (للمذكر العاقل)" },
+                { type: 'mcq', q: "Fill in the blank: ____ is my new car.", options: ["It", "He", "She"], correct: "It", qWordMeaning: "هو/هي (لغير العاقل)" },
+                { type: 'mcq', q: "Fill in the blank: ____ is a talented artist.", options: ["He", "She", "It"], correct: "He", qWordMeaning: "هو (للمذكر العاقل)" },
+                // Fill-in-the-blank for Pronouns
+                { type: 'fill_in', q: "____ is reading a book. (A boy)", correct: "He", qWordMeaning: "هو (للمذكر العاقل)" },
+                { type: 'fill_in', q: "____ is flying high. (A bird)", correct: "It", qWordMeaning: "هو/هي (لغير العاقل)" },
+                { type: 'fill_in', q: "____ is wearing a blue dress. (A girl)", correct: "She", qWordMeaning: "هي (للمؤنث العاقل)" },
             ];
 
             const vocabularyQuestions = [
-                { q: "Which word means 'a round red fruit'?", options: ["Apple", "Book", "Chair"], correct: "Apple", qWordMeaning: "تفاحة" },
-                { q: "Choose the word that means 'something you read'.", options: ["Book", "Ball", "Dog"], correct: "Book", qWordMeaning: "كتاب" },
-                { q: "Which word means 'a four-wheeled vehicle for transport'?", options: ["Car", "Cat", "Fish"], correct: "Car", qWordMeaning: "سيارة" },
-                { q: "Choose the word that means 'a barking pet animal'.", options: ["Dog", "Bird", "Tree"], correct: "Dog", qWordMeaning: "كلب" },
-                { q: "Which word means 'a round thing you eat for breakfast'?", options: ["Egg", "Eye", "Ear"], correct: "Egg", qWordMeaning: "بيضة" },
-                { q: "Choose the word that means 'an animal that lives in water and swims'.", options: ["Fish", "Frog", "Hand"], correct: "Fish", qWordMeaning: "سمكة" },
-                { q: "Which word means 'a young female human'?", options: ["Girl", "Glass", "Goat"], correct: "Girl", qWordMeaning: "فتاة" },
-                { q: "Choose the word that means 'a place where we live'.", options: ["House", "Hat", "Moon"], correct: "House", qWordMeaning: "منزل" },
-                { q: "Which word means 'a cold dessert eaten in summer'?", options: ["Ice Cream", "Ink", "Island"], correct: "Ice Cream", qWordMeaning: "آيس كريم" },
-                { q: "Choose the word that means 'a drink made from fruit'.", options: ["Juice", "Jacket", "Jam"], correct: "Juice", qWordMeaning: "عصير" },
-                { q: "Which word means 'a toy that flies in the sky with a string'?", options: ["Kite", "Key", "King"], correct: "Kite", qWordMeaning: "طائرة ورقية" },
-                { q: "Choose the word that means 'a wild animal that lives in the jungle'.", options: ["Lion", "Lamp", "Leaf"], correct: "Lion", qWordMeaning: "أسد" },
-                { q: "Which word means 'an animal with a long tail that loves bananas'?", options: ["Monkey", "Moon", "Milk"], correct: "Monkey", qWordMeaning: "قرد" },
-                { q: "Choose the word that means 'a part of your face you use to smell'.", options: ["Nose", "Net", "Nest"], correct: "Nose", qWordMeaning: "أنف" },
-                { q: "Which word means 'an orange-colored fruit'?", options: ["Orange", "Owl", "Onion"], correct: "Orange", qWordMeaning: "برتقالة" },
-                { q: "Choose the word that means 'a tool for writing and drawing'.", options: ["Pencil", "Pen", "Pig"], correct: "Pencil", qWordMeaning: "قلم رصاص" },
-                { q: "Which word means 'the wife of a king'?", options: ["Queen", "Quilt", "Quiet"], correct: "Queen", qWordMeaning: "ملكة" },
-                { q: "Choose the word that means 'a pet animal with long ears'.", options: ["Rabbit", "Rain", "Robot"], correct: "Rabbit", qWordMeaning: "أرنب" },
-                { q: "Which word means 'a bright star in the daytime'?", options: ["Sun", "Star", "Shoe"], correct: "Sun", qWordMeaning: "شمس" },
-                { q: "Choose the word that means 'a tall woody plant with leaves'.", options: ["Tree", "Table", "Tiger"], correct: "Tree", qWordMeaning: "شجرة" },
-                { q: "Which word means 'a tool that protects you from rain'?", options: ["Umbrella", "Uniform", "Up"], correct: "Umbrella", qWordMeaning: "مظلة" },
-                { q: "Choose the word that means 'a small vehicle for transporting goods'.", options: ["Van", "Violin", "Vase"], correct: "Van", qWordMeaning: "شاحنة صغيرة" },
-                { q: "Which word means 'a device to tell time worn on your wrist'?", options: ["Watch", "Water", "Window"], correct: "Watch", qWordMeaning: "ساعة يد" },
-                { q: "Choose the word that means 'an internal body image of bones'.", options: ["X-ray", "Xylophone", "Fox"], correct: "X-ray", qWordMeaning: "أشعة سينية" },
-                { q: "Which word means 'the color of a ripe banana'?", options: ["Yellow", "Yogurt", "Yawn"], correct: "Yellow", qWordMeaning: "أصفر" },
-                { q: "Choose the word that means 'a striped black and white animal similar to a horse'.", options: ["Zebra", "Zoo", "Zip"], correct: "Zebra", qWordMeaning: "حمار وحشي" },
+                { type: 'mcq', q: "Which word means 'a round red fruit'?", options: ["Apple", "Book", "Chair"], correct: "Apple", qWordMeaning: "تفاحة" },
+                { type: 'mcq', q: "Choose the word that means 'something you read'.", options: ["Book", "Ball", "Dog"], correct: "Book", qWordMeaning: "كتاب" },
+                { type: 'mcq', q: "Which word means 'a four-wheeled vehicle for transport'?", options: ["Car", "Cat", "Fish"], correct: "Car", qWordMeaning: "سيارة" },
+                { type: 'mcq', q: "Choose the word that means 'a barking pet animal'.", options: ["Dog", "Bird", "Tree"], correct: "Dog", qWordMeaning: "كلب" },
+                { type: 'mcq', q: "Which word means 'a round thing you eat for breakfast'?", options: ["Egg", "Eye", "Ear"], correct: "Egg", qWordMeaning: "بيضة" },
+                { type: 'mcq', q: "Choose the word that means 'an animal that lives in water and swims'.", options: ["Fish", "Frog", "Hand"], correct: "Fish", qWordMeaning: "سمكة" },
+                { type: 'mcq', q: "Which word means 'a young female human'?", options: ["Girl", "Glass", "Goat"], correct: "Girl", qWordMeaning: "فتاة" },
+                { type: 'mcq', q: "Choose the word that means 'a place where we live'.", options: ["House", "Hat", "Moon"], correct: "House", qWordMeaning: "منزل" },
+                { type: 'mcq', q: "Which word means 'a cold dessert eaten in summer'?", options: ["Ice Cream", "Ink", "Island"], correct: "Ice Cream", qWordMeaning: "آيس كريم" },
+                { type: 'mcq', q: "Choose the word that means 'a drink made from fruit'.", options: ["Juice", "Jacket", "Jam"], correct: "Juice", qWordMeaning: "عصير" },
+                { type: 'mcq', q: "Which word means 'a toy that flies in the sky with a string'?", options: ["Kite", "Key", "King"], correct: "Kite", qWordMeaning: "طائرة ورقية" },
+                { type: 'mcq', q: "Choose the word that means 'a wild animal that lives in the jungle'.", options: ["Lion", "Lamp", "Leaf"], correct: "Lion", qWordMeaning: "أسد" },
+                { type: 'mcq', q: "Which word means 'an animal with a long tail that loves bananas'?", options: ["Monkey", "Moon", "Milk"], correct: "Monkey", qWordMeaning: "قرد" },
+                { type: 'mcq', q: "Choose the word that means 'a part of your face you use to smell'.", options: ["Nose", "Net", "Nest"], correct: "Nose", qWordMeaning: "أنف" },
+                { type: 'mcq', q: "Which word means 'an orange-colored fruit'?", options: ["Orange", "Owl", "Onion"], correct: "Orange", qWordMeaning: "برتقالة" },
+                { type: 'mcq', q: "Choose the word that means 'a tool for writing and drawing'.", options: ["Pencil", "Pen", "Pig"], correct: "Pencil", qWordMeaning: "قلم رصاص" },
+                { type: 'mcq', q: "Which word means 'the wife of a king'?", options: ["Queen", "Quilt", "Quiet"], correct: "Queen", qWordMeaning: "ملكة" },
+                { type: 'mcq', q: "Choose the word that means 'a pet animal with long ears'.", options: ["Rabbit", "Rain", "Robot"], correct: "Rabbit", qWordMeaning: "أرنب" },
+                { type: 'mcq', q: "Which word means 'a bright star in the daytime'?", options: ["Sun", "Star", "Shoe"], correct: "Sun", qWordMeaning: "شمس" },
+                { type: 'mcq', q: "Choose the word that means 'a tall woody plant with leaves'.", options: ["Tree", "Table", "Tiger"], correct: "Tree", qWordMeaning: "شجرة" },
+                { type: 'mcq', q: "Which word means 'a tool that protects you from rain'?", options: ["Umbrella", "Uniform", "Up"], correct: "Umbrella", qWordMeaning: "مظلة" },
+                { type: 'mcq', q: "Choose the word that means 'a small vehicle for transporting goods'.", options: ["Van", "Violin", "Vase"], correct: "Van", qWordMeaning: "شاحنة صغيرة" },
+                { type: 'mcq', q: "Which word means 'a device to tell time worn on your wrist'?", options: ["Watch", "Water", "Window"], correct: "Watch", qWordMeaning: "ساعة يد" },
+                { type: 'mcq', q: "Choose the word that means 'an internal body image of bones'.", options: ["X-ray", "Xylophone", "Fox"], correct: "X-ray", qWordMeaning: "أشعة سينية" },
+                { type: 'mcq', q: "Which word means 'the color of a ripe banana'?", options: ["Yellow", "Yogurt", "Yawn"], correct: "Yellow", qWordMeaning: "أصفر" },
+                { type: 'mcq', q: "Choose the word that means 'a striped black and white animal similar to a horse'.", options: ["Zebra", "Zoo", "Zip"], correct: "Zebra", qWordMeaning: "حمار وحشي" },
+                // Fill-in-the-blank for Vocabulary
+                { type: 'fill_in', q: "The color of the sky is ____.", correct: "blue", qWordMeaning: "أزرق" },
+                { type: 'fill_in', q: "A small animal that says 'meow' is a ____.", correct: "cat", qWordMeaning: "قطة" },
+                { type: 'fill_in', q: "We read a ____.", correct: "book", qWordMeaning: "كتاب" },
+                { type: 'fill_in', q: "I have two ____. (for seeing)", correct: "eyes", qWordMeaning: "عيون" },
+                { type: 'fill_in', q: "A ____ is a large wild cat.", correct: "lion", qWordMeaning: "أسد" },
+                { type: 'fill_in', q: "You wear a ____ on your head.", correct: "hat", qWordMeaning: "قبعة" },
             ];
 
-            // قاموس أوسع للمعاني العربية للخيارات
+            // قاموس أوسع للمعاني العربية للخيارات والإجابات المحتملة
             const arabicMeaningMap = {
                 "am": "أكون", "is": "يكون", "are": "يكونون", "runs": "يجري", "jump": "يقفز", "eats": "يأكل", "go": "يذهب", "sleep": "ينام", "fly": "يطير", "walk": "يمشي", "sing": "يغني", "drink": "يشرب", "read": "يقرأ", "drive": "يقود",
                 "do": "يفعل", "does": "يفعل (للمفرد الغائب)", "did": "فعل (ماضي)", "sings": "يغني", "play": "يلعب", "writes": "يكتب", "reads": "يقرأ", "sleeps": "ينام", "jumps": "يقفز", "dances": "يرقص", "swim": "يسبح", "sit": "يجلس", "stand": "يقف", "talk": "يتحدث", "listen": "يستمع", "sees": "يرى", "hears": "يسمع", "come": "يأتي",
@@ -449,33 +493,25 @@
                 "Water": "ماء", "Window": "نافذة", "Watch": "ساعة يد",
                 "X-ray": "أشعة سينية", "Xylophone": "إكسيليفون", "Fox": "ثعلب",
                 "Yellow": "أصفر", "Yogurt": "زبادي", "Yawn": "تثاؤب",
-                "Zebra": "حمار وحشي", "Zoo": "حديقة حيوان", "Zip": "سحاب (ملابس)"
+                "Zebra": "حمار وحشي", "Zoo": "حديقة حيوان", "Zip": "سحاب (ملابس)",
+                // For fill-in-the-blank answers
+                "blue": "أزرق", "cat": "قطة", "book": "كتاب", "eyes": "عيون", "hat": "قبعة"
             };
 
             function getArabicMeaning(word) {
                 return arabicMeaningMap[word] || "معنى غير متاح";
             }
 
-            let allQuestions = [];
+            // تجميع كل الأسئلة في مصفوفة واحدة
+            allQuestionsPool = [
+                ...verbToBeQuestions,
+                ...verbToDoQuestions,
+                ...verbToHaveQuestions,
+                ...heItIsQuestions,
+                ...vocabularyQuestions
+            ];
 
-            // توليد وتوزيع الأسئلة
-            function generateQuizQuestions() {
-                const categories = {
-                    'verb_to_be': shuffleArray([...verbToBeQuestions]).slice(0, 10), // 10 أسئلة
-                    'verb_to_do': shuffleArray([...verbToDoQuestions]).slice(0, 10), // 10 أسئلة
-                    'verb_to_have': shuffleArray([...verbToHaveQuestions]).slice(0, 10), // 10 أسئلة
-                    'he_it_is': shuffleArray([...heItIsQuestions]).slice(0, 5), // 5 أسئلة
-                    'vocabulary': shuffleArray([...vocabularyQuestions]).slice(0, 15) // 15 سؤال
-                };
-
-                allQuestions = [];
-                for (const category in categories) {
-                    allQuestions = allQuestions.concat(categories[category]);
-                }
-                allQuestions = shuffleArray(allQuestions); // خلط كل الأسئلة معًا
-            }
-
-            // دالة لخلط عناصر مصفوفة
+            // دالة لخلط عناصر مصفوفة (Fisher-Yates shuffle)
             function shuffleArray(array) {
                 for (let i = array.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
@@ -484,39 +520,52 @@
                 return array;
             }
 
+            // توليد وتوزيع الأسئلة للاختبار الحالي
+            function generateQuizQuestions() {
+                // نخلط كل الأسئلة المتاحة ثم نختار منها العدد المطلوب
+                currentQuizQuestions = shuffleArray([...allQuestionsPool]).slice(0, desiredTotalQuestions);
+            }
+
             // عرض السؤال الحالي
             function displayQuestion() {
                 feedback.textContent = '';
-                feedback.className = ''; // مسح أي كلاسات سابقة (مثل correct-feedback)
+                feedback.className = '';
                 nextQuestionBtn.style.display = 'none';
-                optionsContainer.innerHTML = ''; // مسح الخيارات السابقة
+                submitAnswerBtn.style.display = 'none';
+                optionsContainer.innerHTML = '';
+                fillInBlankInput.value = ''; // مسح أي نص سابق
+                fillInBlankInput.style.display = 'none'; // إخفاء حقل الأكمل افتراضياً
 
-                if (currentQuestionIndex < totalQuestions) {
-                    const question = allQuestions[currentQuestionIndex];
-                    questionCounter.textContent = `السؤال ${currentQuestionIndex + 1} من ${totalQuestions}`;
+                if (currentQuestionIndex < desiredTotalQuestions) {
+                    const question = currentQuizQuestions[currentQuestionIndex];
+                    questionCounter.textContent = `السؤال ${currentQuestionIndex + 1} من ${desiredTotalQuestions}`;
                     questionText.textContent = question.q;
                     arabicMeaningQuestionSpan.textContent = question.qWordMeaning;
 
-                    // خلط خيارات السؤال الحالي
-                    const shuffledOptions = shuffleArray([...question.options]);
-
-                    shuffledOptions.forEach(option => {
-                        const button = document.createElement('button');
-                        button.classList.add('option-btn');
-                        button.textContent = option;
-                        // For English options, set direction to LTR
-                        button.style.direction = 'ltr';
-                        button.addEventListener('click', () => selectAnswer(button, option, question.correct, question.q));
-                        optionsContainer.appendChild(button);
-                    });
+                    if (question.type === 'mcq') {
+                        optionsContainer.style.display = 'flex'; // إظهار خيارات الاختيار من متعدد
+                        const shuffledOptions = shuffleArray([...question.options]);
+                        shuffledOptions.forEach(option => {
+                            const button = document.createElement('button');
+                            button.classList.add('option-btn');
+                            button.textContent = option;
+                            button.style.direction = 'ltr'; // اتجاه النص للخيارات الإنجليزية
+                            button.addEventListener('click', () => selectMcqAnswer(button, option, question.correct, question.q));
+                            optionsContainer.appendChild(button);
+                        });
+                    } else if (question.type === 'fill_in') {
+                        optionsContainer.style.display = 'none'; // إخفاء خيارات الاختيار من متعدد
+                        fillInBlankInput.style.display = 'block'; // إظهار حقل الأكمل
+                        submitAnswerBtn.style.display = 'block'; // إظهار زر التحقق
+                        fillInBlankInput.focus(); // تركيز المؤشر على حقل الأكمل
+                    }
                 } else {
-                    showResultScreen(); // عرض شاشة النتائج عند الانتهاء
+                    showResultScreen();
                 }
             }
 
-            // التعامل مع اختيار الإجابة
-            function selectAnswer(selectedButton, selectedAnswer, correctAnswer, originalQuestionText) {
-                // تعطيل جميع الخيارات بعد الاختيار
+            // التعامل مع اختيار الإجابة (MCQ)
+            function selectMcqAnswer(selectedButton, selectedAnswer, correctAnswer, originalQuestionText) {
                 Array.from(optionsContainer.children).forEach(button => {
                     button.disabled = true;
                     button.classList.remove('selected');
@@ -528,43 +577,78 @@
                 const correctMeaning = getArabicMeaning(correctAnswer);
                 const isCorrect = (selectedAnswer === correctAnswer);
 
-                // حفظ نتيجة هذا السؤال
                 quizResults.push({
                     question: originalQuestionText,
                     chosenAnswer: selectedAnswer,
                     correctAnswer: correctAnswer,
-                    isCorrect: isCorrect
+                    isCorrect: isCorrect,
+                    type: 'mcq'
                 });
 
                 if (isCorrect) {
                     feedback.textContent = `إجابة صحيحة! (اختيارك: ${selectedAnswer} - ${selectedMeaning})`;
-                    feedback.classList.add('correct-feedback'); // إضافة كلاس لتغيير اللون للأخضر
+                    feedback.classList.add('correct-feedback');
                     selectedButton.classList.add('correct');
                     score++;
                 } else {
                     feedback.textContent = `إجابة خاطئة. الإجابة الصحيحة كانت: ${correctAnswer} (${correctMeaning}). اختيارك: ${selectedAnswer} (${selectedMeaning})`;
-                    feedback.classList.remove('correct-feedback'); // إزالة الكلاس في حالة الخطأ
+                    feedback.classList.remove('correct-feedback');
                     selectedButton.classList.add('incorrect');
-                    // تمييز الإجابة الصحيحة
                     Array.from(optionsContainer.children).forEach(button => {
                         if (button.textContent === correctAnswer) {
                             button.classList.add('correct');
                         }
                     });
                 }
-                nextQuestionBtn.style.display = 'block'; // إظهار زر "السؤال التالي"
+                nextQuestionBtn.style.display = 'block';
             }
+
+            // التعامل مع الإجابة (Fill-in-the-blank)
+            function submitFillInAnswer() {
+                const question = currentQuizQuestions[currentQuestionIndex];
+                const userAnswer = fillInBlankInput.value.trim();
+                const correctAnswer = question.correct;
+                // للمقارنة بدون حساسية لحالة الأحرف (case-insensitive)
+                const isCorrect = (userAnswer.toLowerCase() === correctAnswer.toLowerCase());
+
+                fillInBlankInput.disabled = true; // تعطيل حقل الإدخال
+                submitAnswerBtn.style.display = 'none'; // إخفاء زر التحقق
+
+                const userMeaning = getArabicMeaning(userAnswer);
+                const correctMeaning = getArabicMeaning(correctAnswer);
+
+                quizResults.push({
+                    question: question.q,
+                    chosenAnswer: userAnswer,
+                    correctAnswer: correctAnswer,
+                    isCorrect: isCorrect,
+                    type: 'fill_in'
+                });
+
+                if (isCorrect) {
+                    feedback.textContent = `إجابة صحيحة! (اختيارك: ${userAnswer} - ${userMeaning})`;
+                    feedback.classList.add('correct-feedback');
+                    fillInBlankInput.classList.add('correct'); // تمييز الإدخال نفسه
+                    score++;
+                } else {
+                    feedback.textContent = `إجابة خاطئة. الإجابة الصحيحة كانت: ${correctAnswer} (${correctMeaning}). اختيارك: ${userAnswer} (${userMeaning})`;
+                    feedback.classList.remove('correct-feedback');
+                    fillInBlankInput.classList.add('incorrect'); // تمييز الإدخال نفسه
+                }
+                nextQuestionBtn.style.display = 'block';
+            }
+
 
             // عرض شاشة النتائج النهائية
             function showResultScreen() {
                 quizScreen.style.display = 'none';
                 resultScreen.style.display = 'block';
 
-                const finalScore = (score / totalQuestions) * 100;
+                const finalScore = (score / desiredTotalQuestions) * 100;
 
                 finalStudentName.textContent = studentName;
                 correctAnswersCountSpan.textContent = score;
-                totalQuestionsCountSpan.textContent = totalQuestions;
+                totalQuestionsCountSpan.textContent = desiredTotalQuestions;
                 finalScoreSpan.textContent = finalScore.toFixed(2); // تنسيق الرقم العشري
 
                 displayAnswerSummary(); // عرض ملخص الإجابات
@@ -575,8 +659,11 @@
 
                 quizResults.forEach((result, index) => {
                     const status = result.isCorrect ? "صحيحة" : "خاطئة";
-                    whatsappMessage += `\nالسؤال ${index + 1}: ${result.question}\n`;
-                    whatsappMessage += `إجابتك: ${result.chosenAnswer} (${getArabicMeaning(result.chosenAnswer)})\n`;
+                    // For fill-in-the-blank questions, ensure correct formatting
+                    const questionTextForShare = result.type === 'fill_in' ? result.question.replace('____', result.correctAnswer) : result.question;
+                    
+                    whatsappMessage += `\nالسؤال ${index + 1}: ${questionTextForShare}\n`;
+                    whatsappMessage += `إجابتك: ${result.chosenAnswer || '(لم تتم الإجابة)'} (${getArabicMeaning(result.chosenAnswer)})\n`;
                     whatsappMessage += `الإجابة الصحيحة: ${result.correctAnswer} (${getArabicMeaning(result.correctAnswer)})\n`;
                     whatsappMessage += `الحالة: ${status}\n`;
                 });
@@ -596,12 +683,14 @@
 
                     const questionP = document.createElement('p');
                     questionP.classList.add('summary-question-text');
-                    questionP.textContent = `السؤال ${index + 1}: ${result.question}`;
+                    // لأسئلة أكمل، نعرض السؤال مع الإجابة الصحيحة في الفراغ للمراجعة
+                    const displayQuestionText = result.type === 'fill_in' ? result.question.replace('____', `(${result.correctAnswer})`) : result.question;
+                    questionP.textContent = `السؤال ${index + 1}: ${displayQuestionText}`;
                     itemDiv.appendChild(questionP);
 
                     const userAnswerP = document.createElement('p');
                     userAnswerP.classList.add('summary-user-answer');
-                    userAnswerP.textContent = `إجابتك: ${result.chosenAnswer} (${getArabicMeaning(result.chosenAnswer)})`;
+                    userAnswerP.textContent = `إجابتك: ${result.chosenAnswer || '(لم تتم الإجابة)'} (${getArabicMeaning(result.chosenAnswer)})`;
                     itemDiv.appendChild(userAnswerP);
 
                     const correctAnswerP = document.createElement('p');
@@ -629,6 +718,8 @@
                 feedback.textContent = '';
                 feedback.className = '';
                 nextQuestionBtn.style.display = 'none';
+                submitAnswerBtn.style.display = 'none'; // إخفاء زر التحقق
+                fillInBlankInput.style.display = 'none'; // إخفاء حقل الأكمل
                 quizScreen.style.display = 'none';
                 resultScreen.style.display = 'none';
                 welcomeScreen.style.display = 'block';
@@ -651,6 +742,16 @@
                 currentQuestionIndex++;
                 displayQuestion();
             });
+
+            submitAnswerBtn.addEventListener('click', submitFillInAnswer);
+
+            // تفعيل زر التحقق بالضغط على Enter في حقل الأكمل
+            fillInBlankInput.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter' && submitAnswerBtn.style.display === 'block') {
+                    submitFillInAnswer();
+                }
+            });
+
 
             restartQuizBtn.addEventListener('click', resetQuiz);
 
