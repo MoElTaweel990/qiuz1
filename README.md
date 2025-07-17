@@ -204,11 +204,68 @@
             margin-bottom: 10px;
             color: #1d3557;
             direction: ltr; /* اتجاه النص من اليسار لليمين للأسئلة الإنجليزية */
+            text-align: left; /* محاذاة لليسار للأسئلة الإنجليزية */
         }
         #question-counter {
             font-size: 1.1em;
             color: #607d8b;
             margin-bottom: 5px;
+        }
+
+        #answer-summary {
+            margin-top: 40px;
+            text-align: right;
+            border-top: 2px solid #a8dadc;
+            padding-top: 20px;
+        }
+
+        #answer-summary h3 {
+            color: #1d3557;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+        }
+
+        .summary-item {
+            background-color: #f1faee;
+            border: 1px solid #a8dadc;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            text-align: right;
+            line-height: 1.8;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+
+        .summary-item p {
+            margin: 5px 0;
+            font-size: 1.05em;
+        }
+
+        .summary-question-text {
+            font-weight: bold;
+            color: #1d3557;
+            direction: ltr; /* اتجاه لليسار للسؤال الإنجليزي في الملخص */
+            text-align: left; /* محاذاة لليسار للسؤال الإنجليزي في الملخص */
+        }
+
+        .summary-user-answer {
+            color: #e63946; /* أحمر للإجابات المختارة */
+            font-weight: bold;
+        }
+
+        .summary-correct-answer {
+            color: #28a745; /* أخضر للإجابات الصحيحة */
+            font-weight: bold;
+        }
+
+        .summary-result.correct {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .summary-result.incorrect {
+            color: #dc3545;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -237,6 +294,11 @@
             <p>اسم الطالب/ة: <span id="final-student-name"></span></p>
             <p>أجبت بشكل صحيح على <span id="correct-answers-count"></span> من <span id="total-questions-count"></span> سؤال.</p>
             <p>درجتك النهائية: <span id="final-score"></span> من 100.</p>
+
+            <div id="answer-summary">
+                <h3>ملخص الإجابات:</h3>
+                </div>
+
             <div class="share-buttons">
                 <a id="whatsapp-share-1" href="#" target="_blank" class="share-btn whatsapp-btn">شارك النتيجة (واتساب 1)</a>
                 <a id="whatsapp-share-2" href="#" target="_blank" class="share-btn whatsapp-btn">شارك النتيجة (واتساب 2)</a>
@@ -268,11 +330,13 @@
             const whatsappShare1 = document.getElementById('whatsapp-share-1');
             const whatsappShare2 = document.getElementById('whatsapp-share-2');
             const restartQuizBtn = document.getElementById('restart-quiz-btn');
+            const answerSummaryDiv = document.getElementById('answer-summary');
 
             let studentName = '';
             let currentQuestionIndex = 0;
             let score = 0;
             const totalQuestions = 50; // إجمالي عدد الأسئلة
+            let quizResults = []; // لتخزين نتائج كل سؤال
 
             // --- بيانات الأسئلة باللغة الإنجليزية مع تنوع أكبر في الصياغة والخيارات ---
             // تم تعديل الخيارات لتكون مختلفة في الحروف الأولى لزيادة التحدي
@@ -441,8 +505,8 @@
                         button.classList.add('option-btn');
                         button.textContent = option;
                         // For English options, set direction to LTR
-                        button.style.direction = 'ltr'; 
-                        button.addEventListener('click', () => selectAnswer(button, option, question.correct));
+                        button.style.direction = 'ltr';
+                        button.addEventListener('click', () => selectAnswer(button, option, question.correct, question.q));
                         optionsContainer.appendChild(button);
                     });
                 } else {
@@ -451,7 +515,7 @@
             }
 
             // التعامل مع اختيار الإجابة
-            function selectAnswer(selectedButton, selectedAnswer, correctAnswer) {
+            function selectAnswer(selectedButton, selectedAnswer, correctAnswer, originalQuestionText) {
                 // تعطيل جميع الخيارات بعد الاختيار
                 Array.from(optionsContainer.children).forEach(button => {
                     button.disabled = true;
@@ -462,8 +526,17 @@
 
                 const selectedMeaning = getArabicMeaning(selectedAnswer);
                 const correctMeaning = getArabicMeaning(correctAnswer);
+                const isCorrect = (selectedAnswer === correctAnswer);
 
-                if (selectedAnswer === correctAnswer) {
+                // حفظ نتيجة هذا السؤال
+                quizResults.push({
+                    question: originalQuestionText,
+                    chosenAnswer: selectedAnswer,
+                    correctAnswer: correctAnswer,
+                    isCorrect: isCorrect
+                });
+
+                if (isCorrect) {
                     feedback.textContent = `إجابة صحيحة! (اختيارك: ${selectedAnswer} - ${selectedMeaning})`;
                     feedback.classList.add('correct-feedback'); // إضافة كلاس لتغيير اللون للأخضر
                     selectedButton.classList.add('correct');
@@ -494,13 +567,56 @@
                 totalQuestionsCountSpan.textContent = totalQuestions;
                 finalScoreSpan.textContent = finalScore.toFixed(2); // تنسيق الرقم العشري
 
-                // توليد روابط مشاركة واتساب
-                const encodedName = encodeURIComponent(studentName);
-                const encodedScore = encodeURIComponent(finalScore.toFixed(2));
-                const shareMessage = `مرحباً! ${encodedName} أكمل/ت اختبار الإنجليزية وحصل/ت على ${encodedScore} من 100!`;
+                displayAnswerSummary(); // عرض ملخص الإجابات
 
-                whatsappShare1.href = `https://wa.me/201117112423?text=${shareMessage}`;
-                whatsappShare2.href = `https://wa.me/201019334526?text=${shareMessage}`;
+                // توليد روابط مشاركة واتساب
+                let whatsappMessage = `مرحباً! ${studentName} أكمل/ت اختبار الإنجليزية وحصل/ت على ${finalScore.toFixed(2)} من 100.\n\n`;
+                whatsappMessage += "ملخص الإجابات:\n";
+
+                quizResults.forEach((result, index) => {
+                    const status = result.isCorrect ? "صحيحة" : "خاطئة";
+                    whatsappMessage += `\nالسؤال ${index + 1}: ${result.question}\n`;
+                    whatsappMessage += `إجابتك: ${result.chosenAnswer} (${getArabicMeaning(result.chosenAnswer)})\n`;
+                    whatsappMessage += `الإجابة الصحيحة: ${result.correctAnswer} (${getArabicMeaning(result.correctAnswer)})\n`;
+                    whatsappMessage += `الحالة: ${status}\n`;
+                });
+
+                const encodedMessage = encodeURIComponent(whatsappMessage);
+
+                whatsappShare1.href = `https://wa.me/201117112423?text=${encodedMessage}`;
+                whatsappShare2.href = `https://wa.me/201019334526?text=${encodedMessage}`;
+            }
+
+            // عرض ملخص الإجابات في شاشة النتائج
+            function displayAnswerSummary() {
+                answerSummaryDiv.innerHTML = '<h3>ملخص الإجابات:</h3>'; // إعادة تهيئة القسم
+                quizResults.forEach((result, index) => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.classList.add('summary-item');
+
+                    const questionP = document.createElement('p');
+                    questionP.classList.add('summary-question-text');
+                    questionP.textContent = `السؤال ${index + 1}: ${result.question}`;
+                    itemDiv.appendChild(questionP);
+
+                    const userAnswerP = document.createElement('p');
+                    userAnswerP.classList.add('summary-user-answer');
+                    userAnswerP.textContent = `إجابتك: ${result.chosenAnswer} (${getArabicMeaning(result.chosenAnswer)})`;
+                    itemDiv.appendChild(userAnswerP);
+
+                    const correctAnswerP = document.createElement('p');
+                    correctAnswerP.classList.add('summary-correct-answer');
+                    correctAnswerP.textContent = `الإجابة الصحيحة: ${result.correctAnswer} (${getArabicMeaning(result.correctAnswer)})`;
+                    itemDiv.appendChild(correctAnswerP);
+
+                    const statusP = document.createElement('p');
+                    statusP.classList.add('summary-result');
+                    statusP.classList.add(result.isCorrect ? 'correct' : 'incorrect');
+                    statusP.textContent = `الحالة: ${result.isCorrect ? 'صحيحة' : 'خاطئة'}`;
+                    itemDiv.appendChild(statusP);
+
+                    answerSummaryDiv.appendChild(itemDiv);
+                });
             }
 
             // إعادة تعيين الاختبار
@@ -508,6 +624,7 @@
                 currentQuestionIndex = 0;
                 score = 0;
                 studentName = '';
+                quizResults = []; // مسح النتائج المحفوظة
                 studentNameInput.value = '';
                 feedback.textContent = '';
                 feedback.className = '';
